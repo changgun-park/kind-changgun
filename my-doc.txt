@@ -1,0 +1,5 @@
+Jackson: Frontend developer, has worked in Gebra and is now working on Portal, ESC.
+
+Warren: Backend developer. Product Owner of Gebra.
+
+JC: Former frontend developer. Has worked on multiple projects including Portal and Gebra.
