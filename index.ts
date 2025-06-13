@@ -1,12 +1,42 @@
 import dotenv from "dotenv";
 import OpenAI from "openai";
 import fs from "fs";
+import path from "path";
 
 dotenv.config();
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+function readAllDocuments(docsPath: string) {
+  const documents: { [fileName: string]: string } = {};
+
+  try {
+    if (!fs.existsSync(docsPath)) {
+      console.error(`Directory ${docsPath} does not exist.`);
+      return {};
+    }
+
+    const files = fs.readdirSync(docsPath);
+
+    for (const file of files) {
+      if (file.endsWith("txt") || file.endsWith("md")) {
+        try {
+          const filePath = path.join(docsPath, file);
+          const content = fs.readFileSync(filePath, "utf8");
+          documents[file] = content;
+        } catch (error) {
+          console.error(`Error reading file ${file}:`, error);
+        }
+      }
+    }
+    return documents;
+  } catch (error) {
+    console.error("Error reading documents:", error);
+    return {};
+  }
+}
 
 function readDocument(filePath: string) {
   try {
@@ -18,24 +48,30 @@ function readDocument(filePath: string) {
 }
 
 async function askQuestion(
-  documentContent: string,
+  documents: { [fileName: string]: string },
   question: string
 ): Promise<string> {
   try {
+    let allContent = "";
+
+    for (const [fileName, content] of Object.entries(documents)) {
+      allContent += `\n--- ${fileName} ---\n${content}\n`;
+    }
+
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
           content:
-            "Answer questions based only on the provided document. If the answer isn't in the document, say 'I don't know based on the provided document.",
+            "Answer questions based on the provided documents. Check external sources if needed. Always mention which document contains the information. If the answer isn't in any document, say 'I don't know.'.",
         },
         {
           role: "user",
-          content: `Document: ${documentContent}\n\nQuestion: ${question}`,
+          content: `Documents: ${allContent}\n\nQuestion: ${question}`,
         },
       ],
-      temperature: 0.1,
+      temperature: 0.5,
     });
 
     return response.choices[0].message.content || "No answer provided";
@@ -46,16 +82,18 @@ async function askQuestion(
 }
 
 async function main() {
-  const document = readDocument("./my-doc.txt");
+  const document = readAllDocuments("./docs");
 
   if (!document) {
     console.error("Failed to read document. Please check the file path.");
     return;
   }
 
-  const question = process.argv[2] || "what is the document about?";
+  const question =
+    process.argv[2] || "What topics are covered in the documents?";
 
   const answer = await askQuestion(document, question);
+
   console.log("Answer:", answer);
 }
 
