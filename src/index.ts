@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 import OpenAI from "openai";
 import fs from "fs";
 import path from "path";
+import express from "express";
 
 dotenv.config();
 
@@ -215,7 +216,16 @@ async function askQuestion(question: string): Promise<string> {
 async function main() {
   const command = process.argv[2];
 
-  if (command === "load") {
+  if (
+    command === "server" ||
+    (!command && process.env.NODE_ENV === "production")
+  ) {
+    console.log("🚀 Starting server...");
+    const storedDocs = loadStoredDocuments();
+    console.log(`📦 Loaded ${storedDocs.length} documents`);
+    startHealthServer();
+    console.log("🎉 Server started successfully!");
+  } else if (command === "load") {
     console.log("📁 Creating embeddings and storing documents...");
     const documents = readAllDocuments("./docs");
 
@@ -242,6 +252,25 @@ async function main() {
     const answer = await askQuestion(question);
     console.log(`💡 Answer: ${answer}`);
   }
+}
+
+function startHealthServer() {
+  const app = express();
+
+  app.get("/health", (req, res) => {
+    res.status(200).json({
+      status: "healthy",
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      documentsLoaded: loadStoredDocuments().length,
+    });
+  });
+
+  const port = process.env.PORT || 3000;
+
+  app.listen(port, () => {
+    console.log(`HTTP server is running on port ${port}`);
+  });
 }
 
 main();
