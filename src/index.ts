@@ -254,8 +254,36 @@ async function main() {
   }
 }
 
+// Helper function to send messages to Slack
+async function sendSlackMessage(channel: string, text: string) {
+  try {
+    const response = await fetch("https://slack.com/api/chat.postMessage", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        channel: channel,
+        text: text,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Slack API error: ${response.status}`);
+    }
+
+    console.log("📤 Message sent to Slack successfully");
+  } catch (error) {
+    console.error("❌ Error sending Slack message:", error);
+  }
+}
+
 function startHealthServer() {
   const app = express();
+
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
 
   app.get("/health", (req, res) => {
     res.status(200).json({
@@ -264,6 +292,47 @@ function startHealthServer() {
       uptime: process.uptime(),
       documentsLoaded: loadStoredDocuments().length,
     });
+  });
+
+  app.post("/slack/events", async (req, res) => {
+    const { type, challenge, event } = req.body;
+
+    if (req.body.type === "url_verification") {
+      return res.json({
+        challenge: req.body.challenge,
+      });
+    }
+
+    if (type === "event_callback") {
+      if (event.type === "app_mention") {
+        try {
+          console.log("🔍 Received app mention event:", event.text);
+          const question = event.text.replace(/<@[^>]+>/g, "").trim(); // remove @mention
+          if (question) {
+            const answer = await askQuestion(question);
+
+            await sendSlackMessage(event.channel, answer);
+            console.log("✅ Sent answer to Slack");
+          }
+        } catch (error) {
+          console.error("❌ Error processing Slack event:", error);
+        }
+      }
+    }
+
+    if (event.type === "message" && event.channel_type === "im") {
+      try {
+        if (event.bot_id) return res.status(200).send("OK");
+        console.log("🔍 Received direct message:", event.text);
+        const answer = await askQuestion(event.text);
+        await sendSlackMessage(event.channel, answer);
+        console.log("✅ Sent answer to Slack");
+      } catch (error) {
+        console.error("❌ Error processing Slack event:", error);
+      }
+    }
+
+    return res.status(200).send("OK");
   });
 
   const port = process.env.PORT || 3000;
