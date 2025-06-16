@@ -1,5 +1,8 @@
+import dotenv from "dotenv";
 import { pool } from "./connection";
 import OpenAI from "openai";
+
+dotenv.config();
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
