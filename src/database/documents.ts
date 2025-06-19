@@ -45,68 +45,6 @@ export async function documentExists(fileName: string): Promise<boolean> {
   }
 }
 
-// Store a single document in PostgreSQL
-export async function storeDocument(
-  fileName: string,
-  content: string
-): Promise<void> {
-  try {
-    console.log(`⏳ Processing ${fileName}...`);
-
-    // Create embedding
-    const embedding = await createEmbedding(content);
-
-    // Check if document already exists
-    if (await documentExists(fileName)) {
-      console.log(`⚠️  Document ${fileName} already exists, updating...`);
-
-      // Update existing document
-      await pool.query(
-        `
-        UPDATE documents 
-        SET content = $1, embedding = $2, updated_at = NOW()
-        WHERE filename = $3
-      `,
-        [content, embedding, fileName]
-      );
-
-      console.log(`✅ Updated: ${fileName}`);
-    } else {
-      // Insert new document
-      await pool.query(
-        `
-        INSERT INTO documents (filename, content, embedding)
-        VALUES ($1, $2, $3)
-      `,
-        [fileName, content, embedding]
-      );
-
-      console.log(`✅ Stored: ${fileName}`);
-    }
-  } catch (error) {
-    console.error(`❌ Error storing document ${fileName}:`, error);
-    throw error;
-  }
-}
-
-// Store multiple documents
-export async function storeDocuments(documents: {
-  [fileName: string]: string;
-}): Promise<void> {
-  console.log("🔍 Creating embeddings and storing documents in PostgreSQL...");
-
-  try {
-    for (const [fileName, content] of Object.entries(documents)) {
-      await storeDocument(fileName, content);
-    }
-
-    console.log("✅ All documents processed and stored in PostgreSQL!");
-  } catch (error) {
-    console.error("❌ Error storing documents:", error);
-    throw error;
-  }
-}
-
 // Find relevant documents using vector similarity
 export async function findRelevantDocs(
   question: string,
@@ -165,17 +103,6 @@ export async function getDocumentCount(): Promise<number> {
   } catch (error) {
     console.error("Error getting document count:", error);
     return 0;
-  }
-}
-
-// Clear all documents from database
-export async function clearDocuments(): Promise<void> {
-  try {
-    await pool.query("DELETE FROM documents");
-    console.log("🧹 Cleared all documents from database");
-  } catch (error) {
-    console.error("❌ Error clearing documents:", error);
-    throw error;
   }
 }
 
