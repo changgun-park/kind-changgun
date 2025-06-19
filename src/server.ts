@@ -1,11 +1,6 @@
 import dotenv from "dotenv";
 import { createApp } from "./app";
-import {
-  testConnection,
-  initializeDatabase,
-  closeConnection,
-  getDocumentCount,
-} from "./database";
+import { testConnection, closeConnection, getDocumentCount } from "./database";
 import { Express } from "express";
 
 dotenv.config();
@@ -20,9 +15,6 @@ export class Server {
 
   async start(): Promise<void> {
     try {
-      // Database initialization
-      await this.initializeDatabase();
-
       // Start HTTP server
       await this.startHttpServer();
 
@@ -33,22 +25,6 @@ export class Server {
     } catch (error) {
       console.error("❌ Server startup failed:", error);
       process.exit(1);
-    }
-  }
-
-  private async initializeDatabase(): Promise<void> {
-    console.log("🔄 Testing database connection...");
-    await testConnection();
-
-    console.log("🔧 Ensuring database schema is initialized...");
-    await initializeDatabase();
-
-    const dbCount = await getDocumentCount();
-    console.log(`📦 Database contains ${dbCount} documents`);
-
-    if (dbCount === 0) {
-      console.log("💡 Database is empty. Use scripts to load documents:");
-      console.log("   npm run load-docs");
     }
   }
 

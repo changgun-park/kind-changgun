@@ -3,6 +3,7 @@ import cors from "cors";
 import helmet from "helmet";
 import { healthRouter } from "./routes/health";
 import { slackRouter } from "./routes/slack";
+import { chatRouter } from "./routes/chat";
 import { errorHandler, notFoundHandler } from "./middleware/error-handlers";
 import { requestLogger } from "./middleware/logger";
 
@@ -23,6 +24,7 @@ export function createApp() {
   // Routes
   app.use("/health", healthRouter);
   app.use("/slack", slackRouter);
+  app.use("/chat", chatRouter);
 
   // Error handling (must be last)
   app.use(notFoundHandler);

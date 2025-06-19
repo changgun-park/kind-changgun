@@ -5,10 +5,7 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js server",
-    "load": "node dist/index.js load",
-    "health": "node -e \"console.log('OK')\"",
-    "sync-google-workspace": "node dist/scripts/sync-google-workspace.js"
+    "start": "node dist/index.js server"
   },
   "keywords": [],
   "author": "",
