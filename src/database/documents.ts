@@ -20,7 +20,7 @@ export interface DocumentResult {
 export async function createEmbedding(text: string): Promise<number[]> {
   try {
     const response = await openai.embeddings.create({
-      model: "text-embedding-3-small",
+      model: "text-embedding-ada-002",
       input: text,
     });
 
@@ -28,20 +28,6 @@ export async function createEmbedding(text: string): Promise<number[]> {
   } catch (error) {
     console.error("Error creating embedding:", error);
     throw error;
-  }
-}
-
-// Check if document exists in database
-export async function documentExists(fileName: string): Promise<boolean> {
-  try {
-    const result = await pool.query(
-      "SELECT id FROM documents WHERE filename = $1 LIMIT 1",
-      [fileName]
-    );
-    return result.rows.length > 0;
-  } catch (error) {
-    console.error("Error checking document existence:", error);
-    return false;
   }
 }
 
@@ -53,44 +39,75 @@ export async function findRelevantDocs(
   try {
     console.log(`🔍 Searching for documents related to: "${question}"`);
 
+    const totalDocs = await getDocumentCount();
+    console.log(`📦 Database contains ${totalDocs} documents`);
+
+    if (totalDocs === 0) {
+      console.log("⚠️ No documents found in database.");
+      return [];
+    }
+
     // Create embedding for the question
     const questionEmbedding = await createEmbedding(question);
 
-    // Search for similar documents using vector similarity
-    const result = await pool.query(
-      `
-      SELECT 
-        id,
-        filename,
-        content,
-        1 - (embedding <=> $1::vector) as similarity,
-        created_at
-      FROM documents
-      WHERE embedding IS NOT NULL
-      ORDER BY embedding <=> $1::vector
-      LIMIT $2
-    `,
-      [questionEmbedding, maxResults]
-    );
+    // Convert array to PostgreSQL vector format
+    const vectorString = `[${questionEmbedding.join(",")}]`;
 
-    const documents: DocumentResult[] = result.rows.map((row) => ({
-      id: row.id,
-      fileName: row.filename,
-      content: row.content,
-      similarity: parseFloat(row.similarity),
-      createdAt: row.created_at,
-    }));
-
-    console.log(`📄 Found ${documents.length} relevant documents`);
-    documents.forEach((doc) => {
-      console.log(
-        `  - ${doc.fileName} (Similarity: ${doc.similarity.toFixed(4)})`
+    try {
+      const result = await pool.query(
+        `
+        SELECT 
+          id,
+          filename,
+          content,
+          embedding <=> $1::vector as distance
+        FROM documents
+        WHERE embedding IS NOT NULL
+        ORDER BY embedding <=> $1::vector
+        LIMIT $2
+      `,
+        [vectorString, maxResults]
       );
-    });
 
-    return documents;
+      console.log(`✅ Query returned ${result.rows.length} rows`);
+
+      if (result.rows.length > 0) {
+        console.log("📊 Distance values:");
+        result.rows.forEach((row, index) => {
+          console.log(
+            `  ${index + 1}. ${row.filename}: distance = ${row.distance}`
+          );
+        });
+      }
+
+      const documents: DocumentResult[] = result.rows.map((row) => ({
+        id: row.id,
+        fileName: row.filename,
+        content: row.content,
+        similarity: 1 - parseFloat(row.distance),
+        createdAt: new Date(),
+      }));
+
+      console.log(`📄 Found ${documents.length} relevant documents`);
+      documents.forEach((doc, index) => {
+        console.log(
+          `  ${index + 1}. ${
+            doc.fileName
+          } (Similarity: ${doc.similarity.toFixed(4)})`
+        );
+        console.log(
+          `     Content preview: ${doc.content.substring(0, 100)}...`
+        );
+      });
+
+      return documents;
+    } catch (error) {
+      console.error("❌ Query failed:", error);
+      console.error("Error details:", (error as Error).message);
+      return [];
+    }
   } catch (error) {
-    console.error("❌ Error finding relevant documents:", error);
+    console.error("❌ Error in findRelevantDocs:", error);
     return [];
   }
 }

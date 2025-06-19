@@ -4,7 +4,6 @@ export { pool, testConnection, closeConnection } from "./connection";
 export {
   DocumentResult,
   createEmbedding,
-  documentExists,
   findRelevantDocs,
   getDocumentCount,
   listDocuments,
