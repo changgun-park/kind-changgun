@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { findRelevantDocs } from "../database";
+import { generateGoogleDriveLink } from "../utils/google-drive";
 import OpenAI from "openai";
 
 export const chatRouter = Router();
@@ -20,8 +21,16 @@ chatRouter.post("/query", async (req, res) => {
     let messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       {
         role: "system" as const,
-        content:
-          '당신은 3billion의 사내 챗봇 "창건씨"입니다. 제공된 문서가 있으면 그것을 기반으로 답변하고, 없으면 일반적인 지식으로 답변하되, 문서를 찾지 못했다면 그 사실을 명시해주세요.',
+        content: `당신은 3billion의 사내 챗봇 "창건씨"입니다. 
+
+제공된 문서를 기반으로 질문에 답변하세요.
+
+**중요한 규칙:**
+- 문서에서 찾은 정보만 사용하세요
+- 문서에 없는 정보는 추측하지 마세요
+- 문서에 정보가 없으면 "문서에서 해당 정보를 찾을 수 없습니다"라고 답변하세요
+- 답변은 한국어로 작성하세요
+- 참고 문서 링크는 별도로 추가되므로 포함하지 마세요`,
       },
     ];
 
@@ -41,13 +50,13 @@ chatRouter.post("/query", async (req, res) => {
 
       messages.push({
         role: "user" as const,
-        content: `다음 문서들을 참고하여 질문에 답변해주세요. 문서의 유사도가 낮을 수 있으니, 관련성이 높은 정보만 사용하세요:\n\n${context}\n\n질문: ${question}`,
+        content: `참고할 문서들:\n${context}\n\n질문: ${question}`,
       });
     } else {
       console.log("📚 No documents found, using general knowledge");
       messages.push({
         role: "user" as const,
-        content: `참고할 문서가 없습니다. 일반적인 지식으로 다음 질문에 답변해주세요: ${question}`,
+        content: `참고할 문서가 없습니다. 일반적인 지식으로 다음 질문에 답변하세요: ${question}`,
       });
     }
 
@@ -58,7 +67,19 @@ chatRouter.post("/query", async (req, res) => {
       temperature: 0.7,
     });
 
-    const answer = completion.choices[0].message.content;
+    let answer = completion.choices[0].message.content || "No answer provided";
+
+    // Always add document links manually
+    const docsWithLinks = relevantDocs.filter((doc) => doc.googleDriveId);
+    if (docsWithLinks.length > 0) {
+      answer += "\n\n📄 참고 문서:\n";
+      docsWithLinks.forEach((doc, index) => {
+        const link = generateGoogleDriveLink(doc.googleDriveId!);
+        answer += `${index + 1}. ${doc.originalFilename}: ${link}\n`;
+      });
+    } else if (relevantDocs.length > 0) {
+      answer += "\n\n📄 참고 문서: 링크를 찾을 수 없습니다.";
+    }
 
     res.json({
       answer,
@@ -67,6 +88,9 @@ chatRouter.post("/query", async (req, res) => {
       documents: relevantDocs.map((doc) => ({
         filename: doc.originalFilename,
         similarity: doc.similarity,
+        link: doc.googleDriveId
+          ? generateGoogleDriveLink(doc.googleDriveId)
+          : null,
       })),
     });
   } catch (error) {

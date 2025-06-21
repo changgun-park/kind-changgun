@@ -15,6 +15,7 @@ export interface DocumentResult {
   content: string;
   similarity: number;
   createdAt: Date;
+  googleDriveId?: string;
 }
 
 // Create embedding using OpenAI
@@ -62,6 +63,7 @@ export async function findRelevantDocs(
           chunk_name,
           original_filename,
           content,
+          google_drive_id,
           embedding <=> $1::vector as distance
         FROM documents
         WHERE embedding IS NOT NULL
@@ -77,7 +79,9 @@ export async function findRelevantDocs(
         console.log("📊 Distance values:");
         result.rows.forEach((row, index) => {
           console.log(
-            `  ${index + 1}. ${row.filename}: distance = ${row.distance}`
+            `  ${index + 1}. ${row.original_filename}: distance = ${
+              row.distance
+            }`
           );
         });
       }
@@ -89,6 +93,7 @@ export async function findRelevantDocs(
         content: row.content,
         similarity: 1 - parseFloat(row.distance),
         createdAt: new Date(),
+        googleDriveId: row.google_drive_id,
       }));
 
       console.log(`📄 Found ${documents.length} relevant documents`);
