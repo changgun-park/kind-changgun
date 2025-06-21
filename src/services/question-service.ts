@@ -18,7 +18,7 @@ export async function askQuestion(question: string): Promise<string> {
     let allContent = "";
     for (const doc of relevantDocs) {
       allContent += `\n--- ${
-        doc.fileName
+        doc.originalFilename
       } (Similarity: ${doc.similarity.toFixed(3)}) ---\n${doc.content}\n`;
     }
 

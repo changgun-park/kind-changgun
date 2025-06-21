@@ -10,7 +10,8 @@ const openai = new OpenAI({
 
 export interface DocumentResult {
   id: number;
-  fileName: string;
+  chunkName: string;
+  originalFilename: string;
   content: string;
   similarity: number;
   createdAt: Date;
@@ -58,7 +59,8 @@ export async function findRelevantDocs(
         `
         SELECT 
           id,
-          filename,
+          chunk_name,
+          original_filename,
           content,
           embedding <=> $1::vector as distance
         FROM documents
@@ -82,7 +84,8 @@ export async function findRelevantDocs(
 
       const documents: DocumentResult[] = result.rows.map((row) => ({
         id: row.id,
-        fileName: row.filename,
+        chunkName: row.chunk_name,
+        originalFilename: row.original_filename,
         content: row.content,
         similarity: 1 - parseFloat(row.distance),
         createdAt: new Date(),
@@ -92,7 +95,7 @@ export async function findRelevantDocs(
       documents.forEach((doc, index) => {
         console.log(
           `  ${index + 1}. ${
-            doc.fileName
+            doc.originalFilename
           } (Similarity: ${doc.similarity.toFixed(4)})`
         );
         console.log(
@@ -125,17 +128,17 @@ export async function getDocumentCount(): Promise<number> {
 
 // List all documents in database
 export async function listDocuments(): Promise<
-  Array<{ filename: string; createdAt: Date; updatedAt: Date }>
+  Array<{ originalFilename: string; createdAt: Date; updatedAt: Date }>
 > {
   try {
     const result = await pool.query(`
-      SELECT filename, created_at, updated_at 
+      SELECT original_filename, created_at, updated_at 
       FROM documents 
       ORDER BY updated_at DESC
     `);
 
     return result.rows.map((row) => ({
-      filename: row.filename,
+      originalFilename: row.original_filename,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }));

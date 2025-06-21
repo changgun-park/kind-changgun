@@ -34,7 +34,7 @@ chatRouter.post("/query", async (req, res) => {
         .map(
           (doc, index) =>
             `문서 ${index + 1} (${
-              doc.fileName
+              doc.originalFilename
             }, 유사도: ${doc.similarity.toFixed(3)}):\n${doc.content}`
         )
         .join("\n\n");
@@ -65,7 +65,7 @@ chatRouter.post("/query", async (req, res) => {
       hasRelevantDocs: relevantDocs.length > 0,
       documentCount: relevantDocs.length,
       documents: relevantDocs.map((doc) => ({
-        filename: doc.fileName,
+        filename: doc.originalFilename,
         similarity: doc.similarity,
       })),
     });

@@ -13,103 +13,78 @@ export async function slackEventHandler(req: Request, res: Response) {
   }
 
   if (type === "event_callback") {
-    // Handle app mentions
-    if (event.type === "app_mention") {
-      try {
-        const question = event.text.replace(/<@[^>]+>/g, "").trim();
+    // 🔥 CRITICAL: Respond to Slack immediately to prevent retries
+    res.status(200).send("OK");
+    // Process the event asynchronously
+    processEventAsync(event, requestId, startTime);
+  } else {
+    res.status(200).send("OK");
+  }
+}
 
-        if (question) {
-          const questionStart = Date.now();
-          const answer = await askQuestion(question);
-          console.log(
-            `[${requestId}] ✅ Question answered in ${
-              Date.now() - questionStart
-            }ms`
-          );
-          await sendSlackMessage(event.channel, answer);
-          const totalTime = Date.now() - startTime;
-          console.log(`[${requestId}] 🎉 Question answered in ${totalTime}ms`);
-        } else {
-          console.log(`[${requestId}] ⚠️ No question extracted from message`);
-          // TODO: 스페이스만 찍어서 보냇을때도 뭔가 대답을 해줘야 하지 않을까?
-        }
-      } catch (error) {
-        const totalTime = Date.now() - startTime;
-        console.error(
-          `[${requestId}] ❌ Error processing Slack event after ${totalTime}ms:`,
-          {
-            error: (error as Error).message,
-            stack: (error as Error).stack,
-            eventType: event.type,
-            channel: event.channel,
-          }
-        );
-
-        try {
-          console.log(
-            `[${requestId}] 🆘 Attempting to send error message to Slack...`
-          );
-          await sendSlackMessage(
-            event.channel,
-            "Sorry, I'm having trouble connecting to my database right now. Please try again later."
-          );
-          console.log(`[${requestId}] ✅ Error message sent to Slack`);
-        } catch (slackError) {
-          console.error(
-            `💥 Failed to send error message to Slack:`,
-            slackError
-          );
-        }
-      }
-    }
-
-    // Handle direct messages
-    if (event.type === "message" && event.channel_type === "im") {
-      try {
-        if (event.bot_id) {
-          console.log(`[${requestId}] 🤖 Ignoring bot message`);
-          return res.status(200).send("OK");
-        }
-        const answer = await askQuestion(event.text);
+async function processEventAsync(
+  event: any,
+  requestId: string,
+  startTime: number
+) {
+  // Handle app mentions
+  if (event.type === "app_mention") {
+    try {
+      const question = event.text.replace(/<@[^>]+>/g, "").trim();
+      if (question) {
+        const answer = await askQuestion(question);
         await sendSlackMessage(event.channel, answer);
-
         const totalTime = Date.now() - startTime;
-        console.log(
-          `[${requestId}] 🎉 Complete flow successful in ${totalTime}ms`
+        console.log(`[${requestId}] 🎉 Question answered in ${totalTime}ms`);
+      }
+    } catch (error) {
+      console.error(`[${requestId}] ❌ Error processing app mention:`, error);
+      try {
+        await sendSlackMessage(
+          event.channel,
+          "Sorry, I'm having trouble connecting to my database right now. Please try again later."
         );
-      } catch (error) {
-        const totalTime = Date.now() - startTime;
+      } catch (slackError) {
         console.error(
-          `[${requestId}] ❌ Error processing direct message after ${totalTime}ms:`,
-          {
-            error: (error as Error).message,
-            stack: (error as Error).stack,
-            eventType: event.type,
-            channel: event.channel,
-          }
+          `[${requestId}] 💥 Failed to send error message:`,
+          slackError
         );
-
-        try {
-          console.log(
-            `[${requestId}] 🆘 Attempting to send error message to Slack...`
-          );
-          await sendSlackMessage(
-            event.channel,
-            "Sorry, I'm having trouble connecting to my database right now. Please try again later."
-          );
-          console.log(`[${requestId}] ✅ Error message sent to Slack`);
-        } catch (slackError) {
-          console.error(
-            `[${requestId}] 💥 Failed to send error message to Slack:`,
-            slackError
-          );
-        }
       }
     }
   }
 
-  console.log(`[${requestId}] ✅ Slack event handler completed`);
-  return res.status(200).send("OK");
+  // Handle direct messages
+  else if (event.type === "message" && event.channel_type === "im") {
+    try {
+      if (event.bot_id) {
+        return; // Ignore bot messages
+      }
+
+      const answer = await askQuestion(event.text);
+      await sendSlackMessage(event.channel, answer);
+
+      const totalTime = Date.now() - startTime;
+      console.log(
+        `[${requestId}] 🎉 Direct message answered in ${totalTime}ms`
+      );
+    } catch (error) {
+      console.error(
+        `[${requestId}] ❌ Error processing direct message:`,
+        error
+      );
+      try {
+        await sendSlackMessage(
+          event.channel,
+          "Sorry, I'm having trouble connecting to my database right now. Please try again later."
+        );
+      } catch (slackError) {
+        console.error(
+          `[${requestId}] 💥 Failed to send error message:`,
+          slackError
+        );
+      }
+    }
+  }
 }
 
 export async function sendSlackMessage(
