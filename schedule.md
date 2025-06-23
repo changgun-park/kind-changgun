@@ -47,3 +47,7 @@ langchain: llm app을 만드는 프레임 워크 같은것?
 4. 벡터 임베딩 관리가 부실함: DB로 이관해야 함
 5. 질문 => 대답못하면 피드백 => 문서로 들어가는 사이클 만들기
 6. chunking: document에 따라서 다른 전략을 취해야 하는 것 같기도..
+
+250621(토)
+
+- Document-Level Retrieval with Chunking for storage

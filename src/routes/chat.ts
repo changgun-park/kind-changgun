@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { findRelevantDocs } from "../database";
+import { findRelevantFullDocuments } from "../database";
 import { generateGoogleDriveLink } from "../utils/google-drive";
 import OpenAI from "openai";
 
@@ -16,7 +16,7 @@ chatRouter.post("/query", async (req, res) => {
       return res.status(400).json({ error: "Question is required" });
     }
 
-    const relevantDocs = await findRelevantDocs(question, 3);
+    const relevantDocs = await findRelevantFullDocuments(question, 3);
 
     let messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       {
@@ -35,16 +35,12 @@ chatRouter.post("/query", async (req, res) => {
     ];
 
     if (relevantDocs.length > 0) {
-      console.log(
-        `📚 Using ${relevantDocs.length} documents for context (similarity may be low)`
-      );
+      console.log(`📚 Using ${relevantDocs.length} documents for context`);
 
       const context = relevantDocs
         .map(
           (doc, index) =>
-            `문서 ${index + 1} (${
-              doc.originalFilename
-            }, 유사도: ${doc.similarity.toFixed(3)}):\n${doc.content}`
+            `문서 ${index + 1} (${doc.originalFilename}\n${doc.fullContent}`
         )
         .join("\n\n");
 
@@ -61,7 +57,7 @@ chatRouter.post("/query", async (req, res) => {
     }
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o",
       messages,
       max_tokens: 1000,
       temperature: 0.7,

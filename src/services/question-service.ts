@@ -1,6 +1,6 @@
 // src/services/questionService.ts - Question answering logic
 import OpenAI from "openai";
-import { findRelevantDocs } from "../database";
+import { findRelevantFullDocuments } from "../database";
 import { generateGoogleDriveLink } from "../utils/google-drive";
 
 const openai = new OpenAI({
@@ -10,17 +10,29 @@ const openai = new OpenAI({
 export async function askQuestion(question: string): Promise<string> {
   try {
     console.log("🔍 Using database for document search...");
-    const relevantDocs = await findRelevantDocs(question, 3);
+
+    // Try with higher threshold first
+    let relevantDocs = await findRelevantFullDocuments(question, 3, 0.6);
+
+    // If no documents found, try with lower threshold
+    if (relevantDocs.length === 0) {
+      console.log(
+        "⚠️ No documents found with high threshold, trying lower threshold..."
+      );
+      relevantDocs = await findRelevantFullDocuments(question, 3, 0.0);
+    }
 
     if (relevantDocs.length === 0) {
-      return "❌ Could not find relevant documents to answer your question.";
+      return "❌ 죄송합니다. 질문과 관련된 문서를 찾을 수 없습니다. 다른 방식으로 질문해 주시거나, 관리자에게 문의해 주세요.";
     }
 
     let allContent = "";
     for (const doc of relevantDocs) {
       allContent += `\n--- ${
         doc.originalFilename
-      } (Similarity: ${doc.similarity.toFixed(3)}) ---\n${doc.content}\n`;
+      } (Similarity: ${doc.similarity.toFixed(3)}, Chunks: ${
+        doc.chunkCount
+      }) ---\n${doc.fullContent}\n`;
     }
 
     console.log(
@@ -28,7 +40,7 @@ export async function askQuestion(question: string): Promise<string> {
     );
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o",
       messages: [
         {
           role: "system",

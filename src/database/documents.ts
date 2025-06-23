@@ -8,6 +8,14 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+export interface FullDocumentResult {
+  originalFilename: string;
+  fullContent: string;
+  similarity: number;
+  googleDriveId?: string;
+  chunkCount: number;
+}
+
 export interface DocumentResult {
   id: number;
   chunkName: string;
@@ -22,7 +30,7 @@ export interface DocumentResult {
 export async function createEmbedding(text: string): Promise<number[]> {
   try {
     const response = await openai.embeddings.create({
-      model: "text-embedding-ada-002",
+      model: "text-embedding-3-small",
       input: text,
     });
 
@@ -30,93 +38,6 @@ export async function createEmbedding(text: string): Promise<number[]> {
   } catch (error) {
     console.error("Error creating embedding:", error);
     throw error;
-  }
-}
-
-// Find relevant documents using vector similarity
-export async function findRelevantDocs(
-  question: string,
-  maxResults: number = 3
-): Promise<DocumentResult[]> {
-  try {
-    console.log(`🔍 Searching for documents related to: "${question}"`);
-
-    const totalDocs = await getDocumentCount();
-    console.log(`📦 Database contains ${totalDocs} documents`);
-
-    if (totalDocs === 0) {
-      console.log("⚠️ No documents found in database.");
-      return [];
-    }
-
-    // Create embedding for the question
-    const questionEmbedding = await createEmbedding(question);
-
-    // Convert array to PostgreSQL vector format
-    const vectorString = `[${questionEmbedding.join(",")}]`;
-
-    try {
-      const result = await pool.query(
-        `
-        SELECT 
-          id,
-          chunk_name,
-          original_filename,
-          content,
-          google_drive_id,
-          embedding <=> $1::vector as distance
-        FROM documents
-        WHERE embedding IS NOT NULL
-        ORDER BY embedding <=> $1::vector
-        LIMIT $2
-      `,
-        [vectorString, maxResults]
-      );
-
-      console.log(`✅ Query returned ${result.rows.length} rows`);
-
-      if (result.rows.length > 0) {
-        console.log("📊 Distance values:");
-        result.rows.forEach((row, index) => {
-          console.log(
-            `  ${index + 1}. ${row.original_filename}: distance = ${
-              row.distance
-            }`
-          );
-        });
-      }
-
-      const documents: DocumentResult[] = result.rows.map((row) => ({
-        id: row.id,
-        chunkName: row.chunk_name,
-        originalFilename: row.original_filename,
-        content: row.content,
-        similarity: 1 - parseFloat(row.distance),
-        createdAt: new Date(),
-        googleDriveId: row.google_drive_id,
-      }));
-
-      console.log(`📄 Found ${documents.length} relevant documents`);
-      documents.forEach((doc, index) => {
-        console.log(
-          `  ${index + 1}. ${
-            doc.originalFilename
-          } (Similarity: ${doc.similarity.toFixed(4)})`
-        );
-        console.log(
-          `     Content preview: ${doc.content.substring(0, 100)}...`
-        );
-      });
-
-      return documents;
-    } catch (error) {
-      console.error("❌ Query failed:", error);
-      console.error("Error details:", (error as Error).message);
-      return [];
-    }
-  } catch (error) {
-    console.error("❌ Error in findRelevantDocs:", error);
-    return [];
   }
 }
 
@@ -149,6 +70,130 @@ export async function listDocuments(): Promise<
     }));
   } catch (error) {
     console.error("❌ Error listing documents:", error);
+    return [];
+  }
+}
+
+// Find relevant full documents using vector similarity
+export async function findRelevantFullDocuments(
+  question: string,
+  maxDocuments: number = 3,
+  similarityThreshold: number = 0.0
+): Promise<FullDocumentResult[]> {
+  try {
+    console.log(`🔍 Searching for full documents related to: "${question}"`);
+
+    const questionEmbedding = await createEmbedding(question);
+    const vectorString = `[${questionEmbedding.join(",")}]`;
+
+    // First, find the most relevant chunks
+    const result = await pool.query(
+      `
+      SELECT 
+        original_filename,
+        chunk_name,
+        google_drive_id,
+        embedding <=> $1::vector as distance
+      FROM documents
+      WHERE embedding IS NOT NULL
+      ORDER BY embedding <=> $1::vector
+      LIMIT $2
+      `,
+      [vectorString, maxDocuments * 20] // Get more chunks
+    );
+
+    console.log(`📊 Found ${result.rows.length} chunks, showing distances:`);
+    result.rows.forEach((row, index) => {
+      const distance = parseFloat(row.distance);
+      const similarity = 1 - distance;
+      console.log(
+        `  ${index + 1}. ${row.original_filename} (${
+          row.chunk_name
+        }): distance = ${distance.toFixed(
+          4
+        )}, similarity = ${similarity.toFixed(4)}`
+      );
+    });
+
+    // Group by document and get the best similarity score for each
+    const documentScores = new Map<
+      string,
+      { distance: number; googleDriveId?: string }
+    >();
+
+    for (const row of result.rows) {
+      const filename = row.original_filename;
+      const distance = parseFloat(row.distance);
+      const similarity = 1 - distance; // 0~2
+
+      // Only consider documents above the threshold
+      if (similarity >= similarityThreshold) {
+        if (
+          !documentScores.has(filename) ||
+          distance < documentScores.get(filename)!.distance
+        ) {
+          documentScores.set(filename, {
+            distance,
+            googleDriveId: row.google_drive_id,
+          });
+        }
+      }
+    }
+
+    // Get the top documents
+    const topDocuments = Array.from(documentScores.entries())
+      .sort((a, b) => a[1].distance - b[1].distance)
+      .slice(0, maxDocuments);
+
+    // If no documents meet the threshold, return empty array
+    if (topDocuments.length === 0) {
+      console.log(
+        `⚠️ No documents met similarity threshold of ${similarityThreshold}`
+      );
+      return [];
+    }
+
+    // Retrieve full content for each document
+    const fullDocuments: FullDocumentResult[] = [];
+
+    for (const [filename, { distance, googleDriveId }] of topDocuments) {
+      const contentResult = await pool.query(
+        `
+        SELECT content 
+        FROM documents 
+        WHERE original_filename = $1 
+        ORDER BY id
+        `,
+        [filename]
+      );
+
+      const fullContent = contentResult.rows
+        .map((row) => row.content)
+        .join("\n\n");
+
+      fullDocuments.push({
+        originalFilename: filename,
+        fullContent,
+        similarity: 1 - distance,
+        googleDriveId,
+        chunkCount: contentResult.rows.length,
+      });
+    }
+
+    console.log(
+      `📄 Found ${fullDocuments.length} relevant full documents (threshold: ${similarityThreshold})`
+    );
+    fullDocuments.forEach((doc, index) => {
+      console.log(
+        `  ${index + 1}. ${
+          doc.originalFilename
+        } (Similarity: ${doc.similarity.toFixed(4)}, Chunks: ${doc.chunkCount})`
+      );
+    });
+
+    return fullDocuments;
+  } catch (error) {
+    console.error("❌ Error in findRelevantFullDocuments:", error);
     return [];
   }
 }
