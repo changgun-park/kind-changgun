@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { testConnection, getDocumentCount } from "../database";
 
 export const healthRouter = Router();
 

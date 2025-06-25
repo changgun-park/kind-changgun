@@ -16,7 +16,7 @@ chatRouter.post("/query", async (req, res) => {
       return res.status(400).json({ error: "Question is required" });
     }
 
-    const relevantDocs = await findRelevantFullDocuments(question, 3);
+    const relevantDocs = await findRelevantFullDocuments(question, 5, 0.0);
 
     let messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       {

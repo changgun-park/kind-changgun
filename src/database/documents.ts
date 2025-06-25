@@ -41,39 +41,6 @@ export async function createEmbedding(text: string): Promise<number[]> {
   }
 }
 
-// Get document count from database
-export async function getDocumentCount(): Promise<number> {
-  try {
-    const result = await pool.query("SELECT COUNT(*) as count FROM documents");
-    return parseInt(result.rows[0].count);
-  } catch (error) {
-    console.error("Error getting document count:", error);
-    return 0;
-  }
-}
-
-// List all documents in database
-export async function listDocuments(): Promise<
-  Array<{ originalFilename: string; createdAt: Date; updatedAt: Date }>
-> {
-  try {
-    const result = await pool.query(`
-      SELECT original_filename, created_at, updated_at 
-      FROM documents 
-      ORDER BY updated_at DESC
-    `);
-
-    return result.rows.map((row) => ({
-      originalFilename: row.original_filename,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    }));
-  } catch (error) {
-    console.error("❌ Error listing documents:", error);
-    return [];
-  }
-}
-
 // Find relevant full documents using vector similarity
 export async function findRelevantFullDocuments(
   question: string,

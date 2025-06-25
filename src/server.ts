@@ -1,6 +1,6 @@
 import dotenv from "dotenv";
 import { createApp } from "./app";
-import { testConnection, closeConnection, getDocumentCount } from "./database";
+import { closeConnection } from "./database";
 import { Express } from "express";
 
 dotenv.config();

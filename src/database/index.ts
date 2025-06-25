@@ -5,6 +5,4 @@ export {
   DocumentResult,
   createEmbedding,
   findRelevantFullDocuments,
-  getDocumentCount,
-  listDocuments,
 } from "./documents";
