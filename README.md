@@ -1,8 +1,6 @@
 # KIND-CHANGGUN
 
-20250612(목)
-pnpm project init
-openai, dotenv 설치
-git init
-readme 추가
-간단한 질문-답변 봇 생성
+- 참고
+  https://velog.io/@pcg0527/%EC%95%84%EC%A7%81-%EA%B0%88%EA%B8%B8%EC%9D%B4-%EB%A8%BC-%EC%82%AC%EB%82%B4-%EC%B1%97%EB%B4%87-%EA%B0%9C%EB%B0%9C%EA%B8%B0
+
+- 아키텍쳐

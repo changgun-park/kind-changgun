@@ -34,21 +34,12 @@ google drive 불러오기: python langchain을 이용한 마이크로 서비스
 - chunking
 - ec2 요금은? openai 요금은?
 
-bot token: xoxb-528443734675-9034873425495-rF8JJPWEdfZAtvyr2eI28Bfz
-signing secret: 27b67f6fe9f72f88e9869fd83d21bc8f
-
-langchain: llm app을 만드는 프레임 워크 같은것?
-
 ## IMPROVEMENT
 
-1. 속도가 너무 느림: slack에서 답변받는 속도가 굉장히 느림
+1. ~~속도가 너무 느림: slack에서 답변받는 속도가 굉장히 느림~~
 2. 일반적인 질문(LLM에 하듯이)에 대답할 수 있도록 하기
 3. 참고하는 문서가 너무 적음
-4. 벡터 임베딩 관리가 부실함: DB로 이관해야 함
+4. ~~벡터 임베딩 관리가 부실함: DB로 이관해야 함~~
 5. 질문 => 대답못하면 피드백 => 문서로 들어가는 사이클 만들기
-6. chunking: document에 따라서 다른 전략을 취해야 하는 것 같기도..
+6. chunking: document에 따라서 다른 전략을 취해야 함..
 7. keyword + sementic query search (hybrid)
-
-250621(토)
-
-- Document-Level Retrieval with Chunking for storage
